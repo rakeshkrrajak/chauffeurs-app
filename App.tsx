@@ -272,32 +272,88 @@ const generateInitialMockData = () => {
     if (vehWithHistory) {
         vehWithHistory.assignmentHistory = [ { assignedToId: 'user_emp_1', assignedToName: initialUsers.find(u => u.id === 'user_emp_1')?.name || '', type: 'Employee', startDate: vehWithHistory.dateOfRegistration!, endDate: generatePastDate(180), startMileage: 0, endMileage: 10000 }, { assignedToId: 'user_ra', assignedToName: initialUsers.find(u => u.id === 'user_ra')?.name || '', type: 'Employee', startDate: generatePastDate(179), endDate: generatePastDate(5), startMileage: 10000, endMileage: 24500 }, ];
     }
-    const initialTrips: Trip[] = []; const tripPurposes = [{ name: 'Guest Service', chance: 0.6 }, { name: 'E4 Trip', chance: 0.4 }]; const assignedChauffeursWithVehicles = initialChauffeurs.filter(c => c.assignedVehicleId);
+    const initialTrips: Trip[] = [];
+    const assignedChauffeursWithVehicles = initialChauffeurs.filter(c => c.assignedVehicleId);
     if (assignedChauffeursWithVehicles.length > 0) {
         for (let i = 0; i < MOCK_TRIPS_COUNT; i++) {
-            const chauffeur = assignedChauffeursWithVehicles[i % assignedChauffeursWithVehicles.length]; const vehicleId = chauffeur.assignedVehicleId; const startDayOffset = (i % 30) - 15; let tripTypeName = Math.random() < tripPurposes[0].chance ? tripPurposes[0].name : tripPurposes[1].name; const status = Object.values(TripStatus)[i % Object.values(TripStatus).length];
-            const isPoolTrip = i % 4 === 0; const tripType = Object.values(TripType)[i % Object.values(TripType).length];
-            initialTrips.push({ id: generateMockId(), tripName: `${tripTypeName} #${i + 1}`, vehicleId: isPoolTrip ? null : vehicleId, chauffeurId: isPoolTrip ? null : chauffeur.id, origin: ['Airport T1', 'Corporate Office', 'Hotel Grand', 'City Center'][i % 4], destination: ['Client Site', 'Factory Unit', 'Downtown', 'Exhibition Hall'][i % 4], waypoints: [], scheduledStartDate: generateDateTimeString(startDayOffset, 9 + (i%5)), actualStartDate: status === TripStatus.ONGOING || status === TripStatus.COMPLETED ? generateDateTimeString(startDayOffset, 9) : undefined, actualEndDate: status === TripStatus.COMPLETED ? generateDateTimeString(startDayOffset, 17) : undefined, status: isPoolTrip ? TripStatus.PLANNED : status, dispatchStatus: isPoolTrip ? TripDispatchStatus.PENDING : undefined, tripType: isPoolTrip ? tripType : undefined, otherTripTypeDetail: isPoolTrip && tripType === TripType.OTHER ? `Custom Event #${i}` : undefined, guestName: isPoolTrip ? ['Mr. John Doe', 'Ms. Jane Smith', 'Dr. Alex Ray'][i % 3] : undefined, guestEmail: isPoolTrip ? `guest${i}@example.com` : undefined, guestPhone: isPoolTrip ? `+9198765123${(i % 100).toString().padStart(2,'0')}` : undefined, });
+            const chauffeur = assignedChauffeursWithVehicles[i % assignedChauffeursWithVehicles.length];
+            const vehicle = initialVehicles.find(v => v.id === chauffeur.assignedVehicleId);
+            const startDayOffset = (i % 60) - 30; // Widen date range for more data
+            const status = Object.values(TripStatus)[i % Object.values(TripStatus).length];
+            const isPoolTrip = (i % 4 === 0) || (vehicle?.carType === 'Pool Cars');
+            const tripType = Object.values(TripType)[i % Object.values(TripType).length];
+    
+            let tripPurpose: TripPurpose;
+            let bookingMadeForEmployeeId: string | null = null;
+            let guestName: string | undefined;
+            let tripName: string;
+    
+            if (isPoolTrip) {
+                tripPurpose = TripPurpose.POOL;
+                guestName = ['Guest A (Pool)', 'Guest B (Pool)', 'Guest C (Pool)'][i % 3];
+                tripName = `Pool Trip for ${guestName}`;
+            } else if (vehicle && vehicle.assignedEmployeeId) {
+                // This is an M-Car trip
+                bookingMadeForEmployeeId = vehicle.assignedEmployeeId;
+                const isEmployeePersonalTrip = Math.random() > 0.4; // 60% employee trips
+                if (isEmployeePersonalTrip) {
+                    tripPurpose = TripPurpose.EMPLOYEE;
+                    tripName = `Employee Duty #${i}`;
+                    guestName = undefined; // No guest for personal employee trips
+                } else {
+                    tripPurpose = TripPurpose.GUEST;
+                    guestName = ['Client VIP 1', 'Client VIP 2'][i % 2];
+                    tripName = `Guest Pickup for ${guestName}`;
+                }
+            } else {
+                // Fallback for unassigned M-Cars or other cases
+                tripPurpose = TripPurpose.GUEST;
+                guestName = 'Corporate Guest';
+                tripName = `Guest Duty #${i}`;
+            }
+            
+            initialTrips.push({
+                id: generateMockId(),
+                tripName: tripName,
+                vehicleId: isPoolTrip ? null : vehicle?.id,
+                chauffeurId: isPoolTrip ? null : chauffeur.id,
+                origin: ['Airport T1', 'Corporate Office', 'Hotel Grand', 'City Center'][i % 4],
+                destination: ['Client Site', 'Factory Unit', 'Downtown', 'Exhibition Hall'][i % 4],
+                waypoints: [],
+                scheduledStartDate: generateDateTimeString(startDayOffset, 9 + (i % 5)),
+                actualStartDate: status === TripStatus.ONGOING || status === TripStatus.COMPLETED ? generateDateTimeString(startDayOffset, 9) : undefined,
+                actualEndDate: status === TripStatus.COMPLETED ? generateDateTimeString(startDayOffset, 17) : undefined,
+                status: isPoolTrip ? TripStatus.PLANNED : status,
+                dispatchStatus: isPoolTrip ? TripDispatchStatus.PENDING : undefined,
+                tripType: tripType,
+                otherTripTypeDetail: isPoolTrip && tripType === TripType.OTHER ? `Custom Event #${i}` : undefined,
+                guestName: guestName,
+                guestEmail: isPoolTrip ? `guest${i}@example.com` : undefined,
+                guestPhone: isPoolTrip ? `+9198765123${(i % 100).toString().padStart(2, '0')}` : undefined,
+                // Added fields
+                tripPurpose: tripPurpose,
+                bookingMadeForEmployeeId: bookingMadeForEmployeeId,
+            });
         }
     }
     if (assignedChauffeursWithVehicles.length > 3) {
         for (let day = 1; day <= 5; day++) {
             for (let tripCount = 0; tripCount < 2; tripCount++) {
                 const chauffeur = assignedChauffeursWithVehicles[tripCount % assignedChauffeursWithVehicles.length]; const vehicleId = chauffeur.assignedVehicleId; const startHour = 8 + (tripCount * 4); const endHour = startHour + 2 + Math.floor(Math.random() * 2);
-                initialTrips.push({ id: generateMockId(), tripName: `Completed Trip - Day ${day}, #${tripCount+1}`, vehicleId: vehicleId, chauffeurId: chauffeur.id, origin: ['Whitefield', 'Marathahalli'][tripCount % 2], destination: ['Electronic City', 'MG Road'][tripCount % 2], waypoints: [], scheduledStartDate: generateDateTimeString(-day, startHour), actualStartDate: generateDateTimeString(-day, startHour), actualEndDate: generateDateTimeString(-day, endHour), status: TripStatus.COMPLETED, notes: `Trip completed successfully by ${chauffeur.name}. No issues reported.`, });
+                initialTrips.push({ id: generateMockId(), tripName: `Completed Trip - Day ${day}, #${tripCount+1}`, vehicleId: vehicleId, chauffeurId: chauffeur.id, origin: ['Whitefield', 'Marathahalli'][tripCount % 2], destination: ['Electronic City', 'MG Road'][tripCount % 2], waypoints: [], scheduledStartDate: generateDateTimeString(-day, startHour), actualStartDate: generateDateTimeString(-day, startHour), actualEndDate: generateDateTimeString(-day, endHour), status: TripStatus.COMPLETED, notes: `Trip completed successfully by ${chauffeur.name}. No issues reported.`, tripType: Object.values(TripType)[(day + tripCount) % Object.values(TripType).length] });
             }
         }
     }
     if (assignedChauffeursWithVehicles.length > 2) {
         for (let i = 0; i < 2; i++) {
             const chauffeur = assignedChauffeursWithVehicles[i]; const vehicleId = chauffeur.assignedVehicleId;
-            initialTrips.push({ id: generateMockId(), tripName: `Ongoing Trip #${i + 1}`, vehicleId: vehicleId, chauffeurId: chauffeur.id, origin: ['Malleshwaram', 'Jayanagar'][i], destination: ['Whitefield', 'Electronic City'][i], waypoints: [], scheduledStartDate: generateDateTimeString(0, 9 + i * 2), actualStartDate: generateDateTimeString(0, 9 + i * 2), actualEndDate: undefined, status: TripStatus.ONGOING, notes: `Trip is currently in progress.`, });
+            initialTrips.push({ id: generateMockId(), tripName: `Ongoing Trip #${i + 1}`, vehicleId: vehicleId, chauffeurId: chauffeur.id, origin: ['Malleshwaram', 'Jayanagar'][i], destination: ['Whitefield', 'Electronic City'][i], waypoints: [], scheduledStartDate: generateDateTimeString(0, 9 + i * 2), actualStartDate: generateDateTimeString(0, 9 + i * 2), actualEndDate: undefined, status: TripStatus.ONGOING, notes: `Trip is currently in progress.`, tripType: Object.values(TripType)[i % Object.values(TripType).length] });
         }
     }
     if (assignedChauffeursWithVehicles.length > 3) {
         for (let day = 1; day <= 2; day++) {
              const chauffeur = assignedChauffeursWithVehicles[day]; const vehicleId = chauffeur.assignedVehicleId;
-             initialTrips.push({ id: generateMockId(), tripName: `Upcoming Trip - Day ${day}`, vehicleId: vehicleId, chauffeurId: chauffeur.id, origin: ['Airport', 'Railway Station'][day-1], destination: ['Koramangala', 'Indiranagar'][day-1], waypoints: [], scheduledStartDate: generateDateTimeString(day, 10), actualStartDate: undefined, actualEndDate: undefined, status: TripStatus.PLANNED, notes: `This trip is scheduled for the future.`, });
+             initialTrips.push({ id: generateMockId(), tripName: `Upcoming Trip - Day ${day}`, vehicleId: vehicleId, chauffeurId: chauffeur.id, origin: ['Airport', 'Railway Station'][day-1], destination: ['Koramangala', 'Indiranagar'][day-1], waypoints: [], scheduledStartDate: generateDateTimeString(day, 10), actualStartDate: undefined, actualEndDate: undefined, status: TripStatus.PLANNED, notes: `This trip is scheduled for the future.`, tripType: Object.values(TripType)[(day * 2) % Object.values(TripType).length] });
         }
     }
     initialTrips.push({ id: 'rejected_trip_1', tripName: 'RK-trip', vehicleId: null, chauffeurId: null, origin: 'EC Office', destination: 'Client Location', waypoints: [], scheduledStartDate: generateDateTimeString(-1, 14), status: TripStatus.PLANNED, dispatchStatus: TripDispatchStatus.REJECTED, rejectionReason: 'Chauffeur unavailable', createdBy: 'Manager', guestName: 'Rakesh K.' });

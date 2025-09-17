@@ -13,7 +13,7 @@ interface VehicleOnboardingPageProps {
 const VehicleOnboardingPage: React.FC<VehicleOnboardingPageProps> = ({ addVehicle, chauffeurs, users, vehicles }) => {
   const navigate = useNavigate();
 
-  const handleOnboardingSubmit = (vehicleData: Omit<Vehicle, 'id' | 'imageUrl'>) => {
+  const handleOnboardingSubmit = (vehicleData: Omit<Vehicle, 'id' | 'imageUrl'>, transferReason?: string) => {
     addVehicle(vehicleData);
     alert('Vehicle successfully onboarded!');
     navigate('/vehicles/directory');
@@ -25,13 +25,14 @@ const VehicleOnboardingPage: React.FC<VehicleOnboardingPageProps> = ({ addVehicl
       <p className="text-gray-400">
         Use this comprehensive form to add a new vehicle to the fleet with all its details.
       </p>
-      <div className="bg-white p-6 sm:p-8 rounded-xl shadow-xl">
+      <div className="bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-2xl">
         <VehicleForm
           onSubmit={handleOnboardingSubmit}
           onCancel={() => navigate('/vehicles/directory')}
           chauffeurs={chauffeurs}
           users={users}
           vehicles={vehicles}
+          isOnboarding={true}
         />
       </div>
     </div>

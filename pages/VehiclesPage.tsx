@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback } from 'react';
 import { Vehicle, VehicleStatus, Chauffeur, DocumentType, User, MaintenanceTask, FuelLogEntry, ReportedIssue, MaintenanceType } from '../types';
 import Modal from '../components/Modal';
@@ -472,7 +471,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ vehicles, chauffeurs, users
         </>
       )}
 
-      <Modal isOpen={isEditModalOpen} onClose={closeEditModal} title={'Edit Vehicle Details'} size="4xl" theme="light">
+      <Modal isOpen={isEditModalOpen} onClose={closeEditModal} title={'Edit Vehicle Details'} size="4xl" theme="dark">
         <VehicleForm onSubmit={handleEditFormSubmit} onCancel={closeEditModal} initialData={editingVehicle} chauffeurs={chauffeurs} users={users} vehicles={vehicles}/>
       </Modal>
     </div>
@@ -604,7 +603,14 @@ const VehicleDetailReport: React.FC<VehicleDetailReportProps> = ({ vehicle, chau
                                     {vehicle.assignmentHistory.slice().reverse().map((h, i) => {
                                         const km = (h.endMileage || vehicle.mileage) - (h.startMileage || 0);
                                         return (<tr key={i}>
-                                            <td className="p-2 font-medium">{h.assignedToName}</td>
+                                            <td className="p-2 font-medium">
+                                                <div className="text-gray-200">{h.assignedToName}</div>
+                                                {h.transferReason && (
+                                                    <div className="text-xs text-gray-400 italic mt-1" title={h.transferReason}>
+                                                        Reason: {h.transferReason}
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="p-2 text-gray-400">{formatDate(h.startDate)} - {formatDate(h.endDate)}</td>
                                             <td className="p-2 text-right">{km > 0 ? km.toLocaleString() : 'N/A'}</td>
                                         </tr>)

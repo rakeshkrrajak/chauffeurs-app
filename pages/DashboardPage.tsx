@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Vehicle, Chauffeur, VehicleStatus, ChauffeurAttendance, AttendanceStatus, Trip, TripStatus, ReportedIssue, IssueStatus, IssueSeverity, ChauffeurOnboardingStatus, MaintenanceTask, User, MaintenanceTaskStatus } from '../types';
+import { Vehicle, Chauffeur, VehicleStatus, ChauffeurAttendance, AttendanceStatus, Trip, TripStatus, ReportedIssue, IssueStatus, IssueSeverity, ChauffeurOnboardingStatus, MaintenanceTask, User, MaintenanceTaskStatus, TripType, UserRole, TripPurpose } from '../types';
 import { TruckIcon, UserGroupIcon, ClipboardDocumentCheckIcon, SunIcon, MoonIcon } from '../constants';
 
 interface DashboardPageProps {
@@ -124,7 +124,7 @@ const MonthlyTripsBarChart: React.FC<MonthlyTripsBarChartProps> = ({ data, keys,
   if (data.length === 0 || yMax <= 5) {
     return (
       <div className="flex-grow flex items-center justify-center text-gray-500">
-        No trip data available for this period.
+        No trip data available for the selected filters.
       </div>
     );
   }
@@ -246,6 +246,14 @@ const DonutChart: React.FC<{ data: ChartDataItem[]; title: string; centerText?: 
 const DashboardPage: React.FC<DashboardPageProps> = ({ vehicles, chauffeurs, attendance, trips, reportedIssues, maintenanceTasks, users }) => {
   const [tripChartRange, setTripChartRange] = useState<number>(6);
   const [attendanceChartRange, setAttendanceChartRange] = useState<'weekly' | 'monthly'>('weekly');
+  const [employeeLevelFilter, setEmployeeLevelFilter] = useState<string>('ALL');
+  const [tripTypeFilter, setTripTypeFilter] = useState<TripType | 'ALL'>('ALL');
+  const [chauffeurFilter, setChauffeurFilter] = useState<string>('ALL'); // Chauffeur ID
+
+  const employeeLevels = useMemo(() => {
+    const levels = new Set(users.filter(u => u.role === UserRole.EMPLOYEE && u.level).map(u => u.level!));
+    return ['ALL', ...Array.from(levels).sort(), 'Guests'];
+  }, [users]);
 
   const vehicleStats = useMemo(() => {
     const total = vehicles.length;
@@ -350,13 +358,19 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ vehicles, chauffeurs, att
   const monthlyTripsData = useMemo(() => {
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const today = new Date();
-    const monthlyData: { [key: string]: { 'Guests Service Trips': number; 'E4 Trips': number } } = {};
+    
+    type MonthlyCounts = { [key in TripType]: number };
+    const initialMonthlyCounts: MonthlyCounts = Object.values(TripType).reduce((acc, type) => {
+        acc[type] = 0;
+        return acc;
+    }, {} as MonthlyCounts);
 
-    // Initialize last N months
+    const monthlyData: { [key: string]: MonthlyCounts } = {};
+
     for (let i = tripChartRange - 1; i >= 0; i--) {
         const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
         const monthKey = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-        monthlyData[monthKey] = { 'Guests Service Trips': 0, 'E4 Trips': 0 };
+        monthlyData[monthKey] = { ...initialMonthlyCounts };
     }
 
     const dateLimit = new Date();
@@ -364,28 +378,50 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ vehicles, chauffeurs, att
     dateLimit.setDate(1);
     dateLimit.setHours(0,0,0,0);
 
-
     trips.forEach(trip => {
-        const tripDate = new Date(trip.scheduledStartDate);
-        
-        if (tripDate >= dateLimit) {
-            const monthKey = `${monthNames[tripDate.getMonth()]} ${tripDate.getFullYear()}`;
+      // Date Filter
+      if (!trip.scheduledStartDate || new Date(trip.scheduledStartDate) < dateLimit) {
+          return;
+      }
+      
+      // Chauffeur Filter
+      if (chauffeurFilter !== 'ALL' && trip.chauffeurId !== chauffeurFilter) {
+          return;
+      }
 
-            if (monthlyData[monthKey]) {
-                if (trip.tripName.toLowerCase().includes('guest service')) {
-                    monthlyData[monthKey]['Guests Service Trips']++;
-                } else if (trip.tripName.toLowerCase().includes('e4 trip')) {
-                    monthlyData[monthKey]['E4 Trips']++;
-                }
-            }
-        }
+      // Trip Type Filter
+      if (tripTypeFilter !== 'ALL' && trip.tripType !== tripTypeFilter) {
+          return;
+      }
+
+      // Level/Guest Filter
+      if (employeeLevelFilter !== 'ALL') {
+          if (employeeLevelFilter === 'Guests') {
+              if (trip.tripPurpose !== TripPurpose.GUEST && trip.tripPurpose !== TripPurpose.POOL) {
+                  return;
+              }
+          } else { // It's a specific employee level
+              if (!trip.bookingMadeForEmployeeId) return;
+              const employee = users.find(u => u.id === trip.bookingMadeForEmployeeId);
+              if (employee?.level !== employeeLevelFilter) return;
+          }
+      }
+
+      // If all filters pass, populate the data
+      if (trip.tripType) {
+          const tripDate = new Date(trip.scheduledStartDate);
+          const monthKey = `${monthNames[tripDate.getMonth()]} ${tripDate.getFullYear()}`;
+          if (monthlyData[monthKey]) {
+              monthlyData[monthKey][trip.tripType]++;
+          }
+      }
     });
     
     return Object.entries(monthlyData).map(([month, counts]) => ({
-        month: month.split(' ')[0], // Just show month name for brevity
+        month: month.split(' ')[0],
         ...counts
     }));
-  }, [trips, tripChartRange]);
+  }, [trips, tripChartRange, users, employeeLevelFilter, tripTypeFilter, chauffeurFilter]);
 
   const attendanceChartData = useMemo(() => {
     const today = new Date();
@@ -499,6 +535,16 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ vehicles, chauffeurs, att
   };
     
   const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' });
+  
+  const tripTypeKeys = Object.values(TripType);
+  const tripTypeColors: { [key in TripType]: string } = {
+      [TripType.AIRPORT]: '#3b82f6', // blue-600
+      [TripType.OUTSTATION]: '#8b5cf6', // violet-500
+      [TripType.GUEST_HOTEL_PICKUP]: '#ec4899', // pink-500
+      [TripType.GUEST_OFFICE_PICKUP]: '#d946ef', // fuchsia-500
+      [TripType.AD_HOC]: '#14b8a6', // teal-500
+      [TripType.OTHER]: '#6b7280', // gray-500
+  };
 
   return (
     <div className="space-y-8">
@@ -626,46 +672,81 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ vehicles, chauffeurs, att
       </section>
 
       <section>
-        <h2 className="text-2xl font-semibold text-gray-200 mb-4 border-b border-gray-700 pb-2">Trip Overview</h2>
-        <div className="grid grid-cols-1 gap-6">
-          <div className="bg-gray-800 p-5 rounded-xl shadow-xl h-full flex flex-col min-h-[300px]">
-            <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
-              <div className="flex-grow">
-                  <h3 className="text-lg font-semibold text-gray-100">Monthly Trips by Type</h3>
-              </div>
-              <div className="flex items-center gap-4">
-                  <div className="flex space-x-4 text-xs">
-                      <div className="flex items-center">
-                          <span className="w-2.5 h-2.5 rounded-sm mr-1.5" style={{ backgroundColor: '#2196F3' }}></span>
-                          <span className="text-gray-300">Guests Service Trips</span>
-                      </div>
-                      <div className="flex items-center">
-                          <span className="w-2.5 h-2.5 rounded-sm mr-1.5" style={{ backgroundColor: '#4CAF50' }}></span>
-                          <span className="text-gray-300">E4 Trips</span>
-                      </div>
-                  </div>
-                  <select
-                      value={tripChartRange}
-                      onChange={(e) => setTripChartRange(Number(e.target.value))}
-                      className="bg-gray-700 border border-gray-600 text-gray-200 text-xs rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-1.5"
-                      aria-label="Select trip chart time range"
-                  >
-                      <option value="3">Last 3 Months</option>
-                      <option value="6">Last 6 Months</option>
-                      <option value="12">Last 12 Months</option>
-                  </select>
-              </div>
+        <div className="bg-gray-800 p-5 rounded-xl shadow-xl h-full flex flex-col min-h-[300px]">
+            <div className="flex justify-between items-start flex-wrap gap-2 mb-3">
+                <div className="flex-grow">
+                    <h3 className="text-lg font-semibold text-gray-100">Monthly Trip Overview</h3>
+                     <div className="flex flex-wrap gap-x-3 text-xs text-gray-400 mt-1">
+                        {tripTypeFilter !== 'ALL' && <span>Type: <strong>{tripTypeFilter}</strong></span>}
+                        {employeeLevelFilter !== 'ALL' && <span>Level: <strong>{employeeLevelFilter}</strong></span>}
+                        {chauffeurFilter !== 'ALL' && <span>Chauffeur: <strong>{chauffeurs.find(c => c.id === chauffeurFilter)?.name}</strong></span>}
+                    </div>
+                </div>
+                <div className="flex items-center flex-wrap gap-x-4 gap-y-2">
+                    <div className="flex items-center gap-2">
+                        <label htmlFor="tripTypeFilter" className="text-xs text-gray-400 shrink-0">Type:</label>
+                        <select
+                            id="tripTypeFilter"
+                            value={tripTypeFilter}
+                            onChange={(e) => setTripTypeFilter(e.target.value as TripType | 'ALL')}
+                            className="bg-gray-700 border border-gray-600 text-gray-200 text-xs rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-1.5"
+                        >
+                            <option value="ALL">All Types</option>
+                            {Object.values(TripType).map(type => <option key={type} value={type}>{type}</option>)}
+                        </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <label htmlFor="employeeLevelFilter" className="text-xs text-gray-400 shrink-0">Level:</label>
+                        <select
+                            id="employeeLevelFilter"
+                            value={employeeLevelFilter}
+                            onChange={(e) => setEmployeeLevelFilter(e.target.value)}
+                            className="bg-gray-700 border border-gray-600 text-gray-200 text-xs rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-1.5"
+                        >
+                            {employeeLevels.map(level => (
+                                <option key={level} value={level}>
+                                    {level === 'ALL' ? 'All' : level === 'Guests' ? 'Guests' : `Level ${level}`}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <label htmlFor="chauffeurFilter" className="text-xs text-gray-400 shrink-0">Chauffeur:</label>
+                        <select
+                            id="chauffeurFilter"
+                            value={chauffeurFilter}
+                            onChange={(e) => setChauffeurFilter(e.target.value)}
+                            className="bg-gray-700 border border-gray-600 text-gray-200 text-xs rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-1.5"
+                        >
+                            <option value="ALL">All Chauffeurs</option>
+                            {approvedChauffeurs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                    </div>
+                    <select
+                        value={tripChartRange}
+                        onChange={(e) => setTripChartRange(Number(e.target.value))}
+                        className="bg-gray-700 border border-gray-600 text-gray-200 text-xs rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-1.5"
+                    >
+                        <option value="3">Last 3 Months</option>
+                        <option value="6">Last 6 Months</option>
+                        <option value="12">Last 12 Months</option>
+                    </select>
+                </div>
             </div>
+             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs mb-3">
+                {tripTypeKeys.map(key => (
+                    <div key={key} className="flex items-center">
+                        <span className="w-2.5 h-2.5 rounded-sm mr-1.5" style={{ backgroundColor: tripTypeColors[key] }}></span>
+                        <span className="text-gray-300">{key}</span>
+                    </div>
+                ))}
+              </div>
             <MonthlyTripsBarChart
                 data={monthlyTripsData}
-                keys={['Guests Service Trips', 'E4 Trips']}
-                colors={{
-                    'Guests Service Trips': '#2196F3',
-                    'E4 Trips': '#4CAF50',
-                }}
+                keys={tripTypeKeys}
+                colors={tripTypeColors}
             />
           </div>
-        </div>
       </section>
 
       <section>

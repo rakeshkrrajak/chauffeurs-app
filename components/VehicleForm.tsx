@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Vehicle, VehicleStatus, Chauffeur, DocumentType, Document, User, UserRole } from '../types';
 
-const inputFieldStyle = "bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-primary-500 focus:border-primary-500 block w-full shadow-sm sm:text-sm rounded-md p-2.5 transition-colors duration-200 disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed";
-const labelStyle = "block text-sm font-medium text-gray-700 mb-1.5";
-const tabStyle = "px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors duration-200 ease-in-out";
-const activeTabStyle = "bg-white text-primary-600 border-b-2 border-primary-600";
-const inactiveTabStyle = "text-gray-500 hover:bg-gray-100 hover:text-gray-700 border-b-2 border-transparent";
+const inputFieldStyle = "bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-500 focus:ring-primary-500 focus:border-primary-500 block w-full shadow-sm sm:text-sm rounded-lg p-2.5 transition-colors duration-200 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed";
+const labelStyle = "block text-sm font-medium text-gray-300 mb-1.5";
+const tabStyle = "px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors duration-200 ease-in-out border-b-2";
+const activeTabStyle = "text-primary-400 border-primary-500";
+const inactiveTabStyle = "text-gray-400 hover:text-gray-200 border-transparent hover:border-gray-500";
 
 const initialVehicleFormState: Omit<Vehicle, 'id' | 'imageUrl'> = {
   vin: '',
@@ -44,9 +44,10 @@ interface VehicleFormProps {
   chauffeurs: Chauffeur[]; 
   users: User[];
   vehicles: Vehicle[];
+  isOnboarding?: boolean;
 }
 
-const VehicleForm: React.FC<VehicleFormProps> = ({ onSubmit, onCancel, initialData, chauffeurs, users, vehicles }) => {
+const VehicleForm: React.FC<VehicleFormProps> = ({ onSubmit, onCancel, initialData, chauffeurs, users, vehicles, isOnboarding = false }) => {
   const [formData, setFormData] = useState<Omit<Vehicle, 'id' | 'imageUrl'>>(() => {
     const baseData = initialData ? JSON.parse(JSON.stringify(initialData)) : { ...initialVehicleFormState };
     // Ensure essential documents exist
@@ -62,9 +63,58 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onSubmit, onCancel, initialDa
   });
   
   const [activeTab, setActiveTab] = useState('general');
+  const [transferReason, setTransferReason] = useState('');
 
-  const availableEmployees = useMemo(() => users.filter(u => u.role === UserRole.EMPLOYEE), [users]);
+  useEffect(() => {
+    if (isOnboarding && formData.carType !== 'M-Car') {
+        setFormData(prev => ({
+            ...prev,
+            assignedEmployeeId: null,
+            assignedChauffeurId: null,
+        }));
+    }
+  }, [formData.carType, isOnboarding]);
   
+  const employeeOptions = useMemo(() => {
+    const allEmployees = users.filter(u => u.role === UserRole.EMPLOYEE);
+    const assignedEmployeeIds = new Set(vehicles.map(v => v.assignedEmployeeId).filter(Boolean));
+
+    if (isOnboarding) {
+        if (formData.carType === 'M-Car') {
+            // Onboarding M-Car: show only unassigned employees
+            return allEmployees.filter(u => !assignedEmployeeIds.has(u.id));
+        }
+        // Onboarding Pool Car: field is disabled, return all
+        return allEmployees;
+    } else {
+        // Editing: show unassigned employees PLUS the one currently assigned to THIS vehicle
+        if (initialData?.assignedEmployeeId) {
+            assignedEmployeeIds.delete(initialData.assignedEmployeeId);
+        }
+        return allEmployees.filter(u => !assignedEmployeeIds.has(u.id));
+    }
+}, [users, vehicles, isOnboarding, formData.carType, initialData]);
+
+const chauffeurOptions = useMemo(() => {
+    if (isOnboarding) {
+        if (formData.carType === 'M-Car') {
+            // Onboarding M-Car: show only unassigned chauffeurs
+            return chauffeurs.filter(c => !c.assignedVehicleId);
+        }
+        // Onboarding Pool Car: field is disabled, return all
+        return chauffeurs;
+    } else {
+        // Editing: show unassigned chauffeurs PLUS the one currently assigned to THIS vehicle
+        return chauffeurs.filter(c => !c.assignedVehicleId || c.id === initialData?.assignedChauffeurId);
+    }
+}, [chauffeurs, vehicles, isOnboarding, formData.carType, initialData]);
+
+
+  const isTransfer = initialData && 
+                     initialData.assignedEmployeeId && 
+                     formData.assignedEmployeeId !== initialData.assignedEmployeeId &&
+                     formData.assignedEmployeeId !== null;
+
   const selectedEmployeeDetails = useMemo(() => {
     if (!formData.assignedEmployeeId) return null;
     return users.find(u => u.id === formData.assignedEmployeeId);
@@ -120,25 +170,25 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onSubmit, onCancel, initialDa
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    onSubmit(formData, transferReason);
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Top Section */}
-      <fieldset className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg">
-        <legend className="text-sm font-medium text-gray-600 px-1">Primary Details</legend>
+      <fieldset className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg border-gray-700">
+        <legend className="text-sm font-medium text-gray-400 px-1">Primary Details</legend>
         <div><label htmlFor="licensePlate" className={labelStyle}>Registration Number *</label><input type="text" name="licensePlate" value={formData.licensePlate} onChange={handleChange} required className={inputFieldStyle} /></div>
         <div><label htmlFor="model" className={labelStyle}>Model *</label><input type="text" name="model" value={formData.model} onChange={handleChange} required className={inputFieldStyle} /></div>
         <div><label htmlFor="carType" className={labelStyle}>Car Type</label><select name="carType" value={formData.carType} onChange={handleChange} className={inputFieldStyle}><option>M-Car</option><option>Pool Cars</option><option>Test Cars</option></select></div>
         <div><label htmlFor="fuelCardNumber" className={labelStyle}>Fuel Card Number</label><input type="text" name="fuelCardNumber" value={formData.fuelCardNumber} onChange={handleChange} className={inputFieldStyle} /></div>
         <div><label htmlFor="color" className={labelStyle}>Color</label><input type="text" name="color" value={formData.color} onChange={handleChange} className={inputFieldStyle} /></div>
         <div><label htmlFor="location" className={labelStyle}>Location</label><select name="location" value={formData.location} onChange={handleChange} className={inputFieldStyle}><option>Bangalore</option><option>Mumbai</option><option>Delhi</option></select></div>
-        <div className="flex items-center pt-6"><input type="checkbox" id="inactive" name="inactive" checked={formData.status === VehicleStatus.INACTIVE} onChange={handleChange} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" /><label htmlFor="inactive" className="ml-2 text-sm text-gray-700">Inactive</label></div>
+        <div className="flex items-center pt-6"><input type="checkbox" id="inactive" name="inactive" checked={formData.status === VehicleStatus.INACTIVE} onChange={handleChange} className="h-4 w-4 rounded border-gray-500 text-primary-600 focus:ring-primary-500" /><label htmlFor="inactive" className="ml-2 text-sm text-gray-300">Inactive</label></div>
       </fieldset>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
+      <div className="border-b border-gray-700">
         <nav className="-mb-px flex space-x-6" aria-label="Tabs">
           <button type="button" onClick={() => setActiveTab('general')} className={`${tabStyle} ${activeTab === 'general' ? activeTabStyle : inactiveTabStyle}`}>General</button>
           <button type="button" onClick={() => setActiveTab('ownership')} className={`${tabStyle} ${activeTab === 'ownership' ? activeTabStyle : inactiveTabStyle}`}>Ownership</button>
@@ -152,7 +202,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onSubmit, onCancel, initialDa
             <div><label htmlFor="engineNumber" className={labelStyle}>Engine Number</label><input type="text" name="engineNumber" value={formData.engineNumber} onChange={handleChange} className={inputFieldStyle} /></div>
             <div><label htmlFor="dateOfRegistration" className={labelStyle}>Date of Registration</label><input type="date" name="dateOfRegistration" value={formData.dateOfRegistration || ''} onChange={handleChange} className={`${inputFieldStyle} dark:[color-scheme:dark]`} /></div>
             <div><label htmlFor="mileage" className={labelStyle}>Total Distance Travelled (km)</label><input type="number" name="mileage" value={formData.mileage} onChange={handleChange} className={inputFieldStyle} /></div>
-            <div><label className={labelStyle}>Total Months (Years)</label><input type="text" value={totalMonthsUsed} readOnly className={`${inputFieldStyle} bg-gray-200`} /></div>
+            <div><label className={labelStyle}>Total Months (Years)</label><input type="text" value={totalMonthsUsed} readOnly className={`${inputFieldStyle} bg-gray-600`} /></div>
             <div><label htmlFor="leaseCloseDate" className={labelStyle}>Lease Close Date</label><input type="date" name="leaseCloseDate" value={formData.leaseCloseDate || ''} onChange={handleChange} className={`${inputFieldStyle} dark:[color-scheme:dark]`} /></div>
             <div><label htmlFor="starEaseMaintenance" className={labelStyle}>StarEase Maintenance</label><select name="starEaseMaintenance" value={formData.starEaseMaintenance} onChange={handleChange} className={inputFieldStyle}><option>Yes</option><option>No</option><option>Not Applicable</option></select></div>
             <div><label htmlFor="vin" className={labelStyle}>Chassis Number</label><input type="text" name="vin" value={formData.vin} onChange={handleChange} className={inputFieldStyle} /></div>
@@ -160,26 +210,71 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onSubmit, onCancel, initialDa
             <div><label htmlFor="carVendorName" className={labelStyle}>Car Vendor Name</label><input type="text" name="carVendorName" value={formData.carVendorName || ''} onChange={handleChange} className={inputFieldStyle} /></div>
             <div><label htmlFor="distanceSinceMaintenance" className={labelStyle}>Distance Since Last Maintenance</label><input type="number" name="distanceSinceMaintenance" value={formData.distanceSinceMaintenance} onChange={handleChange} className={inputFieldStyle} /></div>
             <div className="col-span-3 flex gap-x-8 pt-4">
-                <div className="flex items-center"><input type="checkbox" id="isStd" name="isStd" checked={!!formData.isStd} onChange={handleChange} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" /><label htmlFor="isStd" className="ml-2 text-sm text-gray-700">Std</label></div>
-                <div className="flex items-center"><input type="checkbox" id="isNonStd" name="isNonStd" checked={!!formData.isNonStd} onChange={handleChange} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" /><label htmlFor="isNonStd" className="ml-2 text-sm text-gray-700">Non-Std</label></div>
+                <div className="flex items-center"><input type="checkbox" id="isStd" name="isStd" checked={!!formData.isStd} onChange={handleChange} className="h-4 w-4 rounded border-gray-500 text-primary-600 focus:ring-primary-500" /><label htmlFor="isStd" className="ml-2 text-sm text-gray-300">Std</label></div>
+                <div className="flex items-center"><input type="checkbox" id="isNonStd" name="isNonStd" checked={!!formData.isNonStd} onChange={handleChange} className="h-4 w-4 rounded border-gray-500 text-primary-600 focus:ring-primary-500" /><label htmlFor="isNonStd" className="ml-2 text-sm text-gray-300">Non-Std</label></div>
             </div>
         </div>
       </div>
 
       <div className={activeTab === 'ownership' ? 'block' : 'hidden'}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div><label htmlFor="assignedEmployeeId" className={labelStyle}>Employee Name</label><select name="assignedEmployeeId" value={formData.assignedEmployeeId || ''} onChange={handleChange} className={inputFieldStyle}><option value="">Select Employee</option>{availableEmployees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
-            <div><label className={labelStyle}>Employee Level</label><input type="text" value={selectedEmployeeDetails?.level || ''} readOnly className={`${inputFieldStyle} bg-gray-200`} /></div>
-            <div><label className={labelStyle}>Emp ID</label><input type="text" value={selectedEmployeeDetails?.empId || ''} readOnly className={`${inputFieldStyle} bg-gray-200`} /></div>
-            <div><label className={labelStyle}>Department</label><input type="text" value={selectedEmployeeDetails?.department || ''} readOnly className={`${inputFieldStyle} bg-gray-200`} /></div>
-            <div><label className={labelStyle}>User Cost Center</label><input type="text" value={selectedEmployeeDetails?.costCenter || ''} readOnly className={`${inputFieldStyle} bg-gray-200`} /></div>
-            <div><label htmlFor="assignedChauffeurId" className={labelStyle}>Driver Name</label><select name="assignedChauffeurId" value={formData.assignedChauffeurId || ''} onChange={handleChange} className={inputFieldStyle}><option value="">Select Driver</option>{chauffeurs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+            <div>
+              <label htmlFor="assignedEmployeeId" className={labelStyle}>Employee Name</label>
+              <select 
+                name="assignedEmployeeId" 
+                value={formData.assignedEmployeeId || ''} 
+                onChange={handleChange} 
+                className={inputFieldStyle}
+                disabled={isOnboarding && formData.carType !== 'M-Car'}
+              >
+                  <option value="">Select Employee</option>
+                  {employeeOptions.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  {initialData?.assignedEmployeeId && !employeeOptions.some(e => e.id === initialData.assignedEmployeeId) && (
+                      <option value={initialData.assignedEmployeeId}>
+                          {users.find(u => u.id === initialData.assignedEmployeeId)?.name}
+                      </option>
+                  )}
+              </select>
+            </div>
+            <div><label className={labelStyle}>Employee Level</label><input type="text" value={selectedEmployeeDetails?.level || ''} readOnly className={`${inputFieldStyle} bg-gray-600`} /></div>
+            <div><label className={labelStyle}>Emp ID</label><input type="text" value={selectedEmployeeDetails?.empId || ''} readOnly className={`${inputFieldStyle} bg-gray-600`} /></div>
+            <div><label className={labelStyle}>Department</label><input type="text" value={selectedEmployeeDetails?.department || ''} readOnly className={`${inputFieldStyle} bg-gray-600`} /></div>
+            <div><label className={labelStyle}>User Cost Center</label><input type="text" value={selectedEmployeeDetails?.costCenter || ''} readOnly className={`${inputFieldStyle} bg-gray-600`} /></div>
+            <div>
+              <label htmlFor="assignedChauffeurId" className={labelStyle}>Driver Name</label>
+              <select 
+                name="assignedChauffeurId" 
+                value={formData.assignedChauffeurId || ''} 
+                onChange={handleChange} 
+                className={inputFieldStyle}
+                disabled={isOnboarding && formData.carType !== 'M-Car'}
+              >
+                  <option value="">Select Driver</option>
+                  {chauffeurOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
         </div>
+        {isTransfer && (
+          <div className="mt-6 pt-4 border-t border-gray-700">
+            <label htmlFor="transferReason" className={`${labelStyle} text-red-400 font-semibold`}>Reason for Transfer *</label>
+            <textarea
+              name="transferReason"
+              id="transferReason"
+              rows={3}
+              value={transferReason}
+              onChange={(e) => setTransferReason(e.target.value)}
+              required
+              className={`${inputFieldStyle} border-red-500 focus:border-red-500 focus:ring-red-500`}
+              placeholder="e.g., Employee promotion, location change, policy completion."
+            />
+            <p className="text-xs text-gray-500 mt-1">Please provide a reason for changing the assigned employee. This will be logged in the vehicle's history.</p>
+          </div>
+        )}
       </div>
 
       <div className={activeTab === 'documents' ? 'block' : 'hidden'}>
         {/* PUC */}
-        <fieldset className="p-3 border rounded-lg mb-4"><legend className="font-medium">PUC Certificate</legend>
+        <fieldset className="p-3 border border-gray-600 rounded-lg mb-4"><legend className="font-medium text-gray-200">PUC Certificate</legend>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div><label className={labelStyle}>PUC Doc File</label><input type="text" value={getDocValue(DocumentType.PUC, 'fileName') as string} onChange={e => handleDocumentChange(DocumentType.PUC, 'fileName', e.target.value)} className={inputFieldStyle} placeholder="puc_cert.pdf" /></div>
               <div><label className={labelStyle}>Start Date</label><input type="date" value={getDocValue(DocumentType.PUC, 'startDate') as string} onChange={e => handleDocumentChange(DocumentType.PUC, 'startDate', e.target.value)} className={`${inputFieldStyle} dark:[color-scheme:dark]`} /></div>
@@ -187,7 +282,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onSubmit, onCancel, initialDa
           </div>
         </fieldset>
         {/* Insurance */}
-        <fieldset className="p-3 border rounded-lg mb-4"><legend className="font-medium">Insurance</legend>
+        <fieldset className="p-3 border border-gray-600 rounded-lg mb-4"><legend className="font-medium text-gray-200">Insurance</legend>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div><label className={labelStyle}>Policy Number</label><input type="text" value={getDocValue(DocumentType.INSURANCE, 'number') as string} onChange={e => handleDocumentChange(DocumentType.INSURANCE, 'number', e.target.value)} className={inputFieldStyle} /></div>
               <div><label className={labelStyle}>Start Date</label><input type="date" value={getDocValue(DocumentType.INSURANCE, 'startDate') as string} onChange={e => handleDocumentChange(DocumentType.INSURANCE, 'startDate', e.target.value)} className={`${inputFieldStyle} dark:[color-scheme:dark]`} /></div>
@@ -197,7 +292,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onSubmit, onCancel, initialDa
           </div>
         </fieldset>
         {/* RC */}
-        <fieldset className="p-3 border rounded-lg"><legend className="font-medium">Registration Certificate (RC)</legend>
+        <fieldset className="p-3 border border-gray-600 rounded-lg"><legend className="font-medium text-gray-200">Registration Certificate (RC)</legend>
           <div><label className={labelStyle}>RC Doc File</label><input type="text" value={getDocValue(DocumentType.RC, 'fileName') as string} onChange={e => handleDocumentChange(DocumentType.RC, 'fileName', e.target.value)} className={inputFieldStyle} placeholder="rc_book.pdf" /></div>
         </fieldset>
       </div>
@@ -206,8 +301,8 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onSubmit, onCancel, initialDa
         <p className="text-gray-500">Expense tracking for this vehicle will be available here after onboarding.</p>
       </div>
 
-      <div className="flex justify-end space-x-3 pt-5 border-t border-gray-200">
-        <button type="button" onClick={onCancel} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+      <div className="flex justify-end space-x-3 pt-5 border-t border-gray-700">
+        <button type="button" onClick={onCancel} className="bg-gray-600 py-2 px-4 border border-gray-500 rounded-md shadow-sm text-sm font-medium text-gray-300 hover:bg-gray-500">Cancel</button>
         <button type="submit" className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700">
           {initialData ? 'Update Vehicle' : 'Onboard Vehicle'}
         </button>
