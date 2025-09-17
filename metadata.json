@@ -1,0 +1,9 @@
+{
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ],
+  "name": "Chauffeur Management-V1.1",
+  "description": "this is copied version of original one",
+  "prompt": ""
+}

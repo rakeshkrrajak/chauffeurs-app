@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FleetPro - Fleet Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              // Primary accent color (e.g., for buttons, highlights)
+              primary: {
+                DEFAULT: '#0ea5e9', // sky-500
+                light: '#38bdf8',   // sky-400
+                dark: '#0284c7',    // sky-600
+                50: '#f0f9ff',
+                100: '#e0f2fe',
+                200: '#bae6fd',
+                300: '#7dd3fc',
+                400: '#38bdf8',
+                500: '#0ea5e9',
+                600: '#0284c7',
+                700: '#0369a1',
+                800: '#075985',
+                900: '#0c4a6e',
+                950: '#082f49',
+              },
+              // Grays for dark theme: backgrounds, text, borders
+              gray: {
+                50: '#f9fafb',    // Lightest gray (for light theme elements if any, or very subtle highlights)
+                100: '#f3f4f6',   // Light gray for text on dark, or subtle borders
+                200: '#e5e7eb',   // Primary light text color
+                300: '#d1d5db',   // Secondary light text color
+                400: '#9ca3af',   // Muted text, icons
+                500: '#6b7280',   // Borders, disabled states
+                600: '#4b5563',   // Darker borders, secondary UI elements
+                700: '#374151',   // Card/modal backgrounds on a slightly darker base
+                800: '#1f2937',   // Main content area background or primary card background
+                850: '#18212f',   // Slightly darker than 800, for depth
+                900: '#111827',   // Main body background
+                950: '#030712',   // Darkest, for specific accents or deep shadows
+              },
+              // Accent color (already defined as primary, sky is a good choice for this)
+              sky: { // Retaining full sky palette for flexibility
+                50: '#f0f9ff',
+                100: '#e0f2fe',
+                200: '#bae6fd',
+                300: '#7dd3fc',
+                400: '#38bdf8',
+                500: '#0ea5e9',
+                600: '#0284c7',
+                700: '#0369a1',
+                800: '#075985',
+                900: '#0c4a6e',
+                950: '#082f49',
+              },
+            }
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.6.2",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.5.1",
+    "@heroicons/react/": "https://esm.sh/@heroicons/react@^2.2.0/"
+  }
+}
+</script>
+</head>
+  <body class="bg-gray-900 text-gray-200 font-sans antialiased">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
