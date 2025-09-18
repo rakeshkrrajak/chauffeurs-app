@@ -43,7 +43,7 @@ const Sidebar: React.FC = () => {
                   }`}
                 >
                   <div className="flex items-center space-x-3">
-                    <item.icon className="w-5 h-5 text-gray-400 group-hover:text-primary-400" />
+                    <item.icon className="w-5 h-5 text-gray-400 group-hover:text-white" />
                     <span className="font-medium">{item.name}</span>
                   </div>
                   <ChevronDownIcon
@@ -58,7 +58,7 @@ const Sidebar: React.FC = () => {
                         to={child.path}
                         className={({ isActive }) =>
                           `flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm transition-colors duration-200 ${
-                            isActive ? 'bg-primary-600 text-white font-semibold' : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                            isActive ? 'bg-gray-700 text-white font-semibold' : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
                           }`
                         }
                       >
@@ -84,7 +84,7 @@ const Sidebar: React.FC = () => {
                 }`
               }
             >
-              <item.icon className="w-5 h-5 text-gray-400 group-hover:text-primary-400" />
+              <item.icon className="w-5 h-5 text-gray-400 group-hover:text-white" />
               <span className="font-medium">{item.name}</span>
             </NavLink>
           );

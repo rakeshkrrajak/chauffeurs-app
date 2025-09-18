@@ -296,14 +296,6 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   },
 ];
 
-export const WHOLESALE_NAVIGATION_ITEMS: NavigationItem[] = [
-    { name: "Wholesale Dashboard", path: "/wholesale/dashboard", icon: HomeIcon },
-    { name: "Dealerships", path: "/wholesale/dealerships", icon: BuildingStorefrontIcon },
-    { name: 'Inventory', path: '/wholesale/inventory', icon: RectangleStackIcon },
-    { name: 'Credit Lines', path: '/wholesale/credit-lines', icon: BanknotesIcon },
-    { name: 'Audits', path: '/wholesale/audits', icon: ClipboardDocumentCheckIcon },
-];
-
 export const MOCK_VEHICLES_COUNT = 25;
 export const MOCK_CHAUFFEURS_COUNT = 25; 
 export const MOCK_USERS_COUNT = 12;
