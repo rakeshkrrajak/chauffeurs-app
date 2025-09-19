@@ -271,8 +271,7 @@ const TripDispatchPage: React.FC<TripDispatchPageProps> = ({ trips, chauffeurs, 
 
         const filterFn = (c: Chauffeur) => 
             c.onboardingStatus === ChauffeurOnboardingStatus.APPROVED &&
-            !busyChauffeurIds.has(c.id) &&
-            onDutyChauffeurIds.has(c.id);
+            !busyChauffeurIds.has(c.id);
 
         if (selectedCarType === 'M-Car') {
             return chauffeurs.filter(c => c.chauffeurType === ChauffeurType.M_CAR && filterFn(c));
@@ -281,7 +280,7 @@ const TripDispatchPage: React.FC<TripDispatchPageProps> = ({ trips, chauffeurs, 
             return chauffeurs.filter(c => c.chauffeurType === ChauffeurType.POOL && filterFn(c));
         }
         return [];
-    }, [dispatchingTrip, selectedCarType, chauffeurs, busyChauffeurIds, onDutyChauffeurIds]);
+    }, [dispatchingTrip, selectedCarType, chauffeurs, busyChauffeurIds]);
 
     const availableVehicles = useMemo(() => {
         if (!dispatchingTrip || selectedCarType !== 'Pool Car') return [];

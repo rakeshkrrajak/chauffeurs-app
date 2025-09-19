@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Vehicle, VehicleStatus, Chauffeur, DocumentType, Document, User, UserRole } from '../types';
+import { Vehicle, VehicleStatus, Chauffeur, DocumentType, Document, User, UserRole, ChauffeurType } from '../types';
 
 const inputFieldStyle = "bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-500 focus:ring-primary-500 focus:border-primary-500 block w-full shadow-sm sm:text-sm rounded-lg p-2.5 transition-colors duration-200 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed";
 const labelStyle = "block text-sm font-medium text-gray-300 mb-1.5";
@@ -66,48 +66,47 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onSubmit, onCancel, initialDa
   const [transferReason, setTransferReason] = useState('');
 
   useEffect(() => {
-    if (isOnboarding && formData.carType !== 'M-Car') {
-        setFormData(prev => ({
-            ...prev,
-            assignedEmployeeId: null,
-            assignedChauffeurId: null,
-        }));
-    }
-  }, [formData.carType, isOnboarding]);
-  
-  const employeeOptions = useMemo(() => {
-    const allEmployees = users.filter(u => u.role === UserRole.EMPLOYEE);
-    const assignedEmployeeIds = new Set(vehicles.map(v => v.assignedEmployeeId).filter(Boolean));
+    // When carType changes, reset assignments to avoid invalid states
+    setFormData(prev => ({
+        ...prev,
+        assignedEmployeeId: null,
+        assignedChauffeurId: null,
+    }));
+  }, [formData.carType]);
 
-    if (isOnboarding) {
-        if (formData.carType === 'M-Car') {
-            // Onboarding M-Car: show only unassigned employees
-            return allEmployees.filter(u => !assignedEmployeeIds.has(u.id));
-        }
-        // Onboarding Pool Car: field is disabled, return all
-        return allEmployees;
-    } else {
-        // Editing: show unassigned employees PLUS the one currently assigned to THIS vehicle
-        if (initialData?.assignedEmployeeId) {
-            assignedEmployeeIds.delete(initialData.assignedEmployeeId);
-        }
-        return allEmployees.filter(u => !assignedEmployeeIds.has(u.id));
-    }
-}, [users, vehicles, isOnboarding, formData.carType, initialData]);
+  const assigneeOptions = useMemo(() => {
+    let potentialAssignees: User[] = [];
 
-const chauffeurOptions = useMemo(() => {
-    if (isOnboarding) {
-        if (formData.carType === 'M-Car') {
-            // Onboarding M-Car: show only unassigned chauffeurs
-            return chauffeurs.filter(c => !c.assignedVehicleId);
-        }
-        // Onboarding Pool Car: field is disabled, return all
-        return chauffeurs;
+    if (formData.carType === 'M-Car') {
+        potentialAssignees = users.filter(u => u.role === UserRole.EMPLOYEE);
+    } else if (formData.carType === 'Test Cars') {
+        potentialAssignees = users.filter(u => u.role === UserRole.FLEET_MANAGER || u.role === UserRole.ADMIN);
     } else {
-        // Editing: show unassigned chauffeurs PLUS the one currently assigned to THIS vehicle
-        return chauffeurs.filter(c => !c.assignedVehicleId || c.id === initialData?.assignedChauffeurId);
+        return []; // No options for Pool Car
     }
-}, [chauffeurs, vehicles, isOnboarding, formData.carType, initialData]);
+    
+    // Logic to only show available assignees
+    const assignedIds = new Set(vehicles.map(v => v.assignedEmployeeId).filter(Boolean));
+    if (initialData?.assignedEmployeeId) {
+        assignedIds.delete(initialData.assignedEmployeeId);
+    }
+    return potentialAssignees.filter(u => !assignedIds.has(u.id));
+
+  }, [users, vehicles, formData.carType, initialData]);
+
+  const chauffeurOptions = useMemo(() => {
+    let potentialChauffeurs: Chauffeur[] = [];
+    if (formData.carType === 'M-Car') {
+        potentialChauffeurs = chauffeurs.filter(c => c.chauffeurType === ChauffeurType.M_CAR);
+    } else if (formData.carType === 'Pool Cars') {
+        potentialChauffeurs = chauffeurs.filter(c => c.chauffeurType === ChauffeurType.POOL);
+    } else {
+        return []; // No chauffeurs for Test Cars
+    }
+
+    // Logic to show only available chauffeurs
+    return potentialChauffeurs.filter(c => !c.assignedVehicleId || c.id === initialData?.assignedChauffeurId);
+  }, [chauffeurs, formData.carType, initialData]);
 
 
   const isTransfer = initialData && 
@@ -173,6 +172,11 @@ const chauffeurOptions = useMemo(() => {
     onSubmit(formData, transferReason);
   };
 
+  const assigneeLabel = formData.carType === 'Test Cars' ? 'Driver Name (Fleet Manager)' : 'Employee Name';
+  const isAssigneeSelectDisabled = formData.carType === 'Pool Cars';
+  const isChauffeurDisabled = formData.carType === 'Test Cars';
+  const isEmployeeDetailsDisabled = formData.carType === 'Pool Cars' || formData.carType === 'Test Cars';
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Top Section */}
@@ -219,35 +223,37 @@ const chauffeurOptions = useMemo(() => {
       <div className={activeTab === 'ownership' ? 'block' : 'hidden'}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <label htmlFor="assignedEmployeeId" className={labelStyle}>Employee Name</label>
+              <label htmlFor="assignedEmployeeId" className={labelStyle}>{assigneeLabel}</label>
               <select 
                 name="assignedEmployeeId" 
+                id="assignedEmployeeId"
                 value={formData.assignedEmployeeId || ''} 
                 onChange={handleChange} 
                 className={inputFieldStyle}
-                disabled={isOnboarding && formData.carType !== 'M-Car'}
+                disabled={isAssigneeSelectDisabled}
               >
-                  <option value="">Select Employee</option>
-                  {employeeOptions.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                  {initialData?.assignedEmployeeId && !employeeOptions.some(e => e.id === initialData.assignedEmployeeId) && (
+                  <option value="">{`Select ${formData.carType === 'Test Cars' ? 'Manager' : 'Employee'}`}</option>
+                  {assigneeOptions.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  {initialData?.assignedEmployeeId && !assigneeOptions.some(e => e.id === initialData.assignedEmployeeId) && (
                       <option value={initialData.assignedEmployeeId}>
                           {users.find(u => u.id === initialData.assignedEmployeeId)?.name}
                       </option>
                   )}
               </select>
             </div>
-            <div><label className={labelStyle}>Employee Level</label><input type="text" value={selectedEmployeeDetails?.level || ''} readOnly className={`${inputFieldStyle} bg-gray-600`} /></div>
-            <div><label className={labelStyle}>Emp ID</label><input type="text" value={selectedEmployeeDetails?.empId || ''} readOnly className={`${inputFieldStyle} bg-gray-600`} /></div>
-            <div><label className={labelStyle}>Department</label><input type="text" value={selectedEmployeeDetails?.department || ''} readOnly className={`${inputFieldStyle} bg-gray-600`} /></div>
-            <div><label className={labelStyle}>User Cost Center</label><input type="text" value={selectedEmployeeDetails?.costCenter || ''} readOnly className={`${inputFieldStyle} bg-gray-600`} /></div>
+            <div><label className={labelStyle}>Employee Level</label><input type="text" value={selectedEmployeeDetails?.level || ''} readOnly disabled={isEmployeeDetailsDisabled} className={inputFieldStyle} /></div>
+            <div><label className={labelStyle}>Emp ID</label><input type="text" value={selectedEmployeeDetails?.empId || ''} readOnly disabled={isEmployeeDetailsDisabled} className={inputFieldStyle} /></div>
+            <div><label className={labelStyle}>Department</label><input type="text" value={selectedEmployeeDetails?.department || ''} readOnly disabled={isEmployeeDetailsDisabled} className={inputFieldStyle} /></div>
+            <div><label className={labelStyle}>User Cost Center</label><input type="text" value={selectedEmployeeDetails?.costCenter || ''} readOnly disabled={isEmployeeDetailsDisabled} className={inputFieldStyle} /></div>
             <div>
               <label htmlFor="assignedChauffeurId" className={labelStyle}>Driver Name</label>
               <select 
                 name="assignedChauffeurId" 
+                id="assignedChauffeurId"
                 value={formData.assignedChauffeurId || ''} 
                 onChange={handleChange} 
                 className={inputFieldStyle}
-                disabled={isOnboarding && formData.carType !== 'M-Car'}
+                disabled={isChauffeurDisabled}
               >
                   <option value="">Select Driver</option>
                   {chauffeurOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
