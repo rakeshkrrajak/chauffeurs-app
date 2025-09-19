@@ -11,7 +11,6 @@ import ChauffeurOnboardingPage from './pages/ChauffeurOnboardingPage';
 import UserManagementPage from './pages/UserManagementPage';
 import EmployeeDirectoryPage from './pages/EmployeeDirectoryPage';
 import EmployeeOnboardingPage from './pages/EmployeeOnboardingPage';
-import EmployeePolicyPage from './pages/EmployeePolicyPage';
 import PoolTripRequestsPage from './pages/chauffeurs/PoolTripRequestsPage';
 import ChauffeurAttendancePage from './pages/DriverAttendancePage';
 import ChauffeurPerformancePage from './pages/ChauffeurPerformancePage';
@@ -272,6 +271,99 @@ const generateInitialMockData = () => {
     if (vehWithHistory) {
         vehWithHistory.assignmentHistory = [ { assignedToId: 'user_emp_1', assignedToName: initialUsers.find(u => u.id === 'user_emp_1')?.name || '', type: 'Employee', startDate: vehWithHistory.dateOfRegistration!, endDate: generatePastDate(180), startMileage: 0, endMileage: 10000 }, { assignedToId: 'user_ra', assignedToName: initialUsers.find(u => u.id === 'user_ra')?.name || '', type: 'Employee', startDate: generatePastDate(179), endDate: generatePastDate(5), startMileage: 10000, endMileage: 24500 }, ];
     }
+
+    // Craft specific policy scenarios for demonstration
+    const findUnassignedVehicle = (excludeIds: string[]): Vehicle | undefined => initialVehicles.find(v => !v.assignedEmployeeId && !excludeIds.includes(v.id));
+    const assignedForScenario: string[] = [];
+
+    const empExceededKm = initialUsers.find(u => u.id === 'user_emp_2');
+    const empExceededTime = initialUsers.find(u => u.id === 'user_emp_3');
+    const empApproachingKm = initialUsers.find(u => u.id === 'user_emp_4');
+    const empApproachingTime = initialUsers.find(u => u.id === 'user_emp_5');
+    const empWithinLimits = initialUsers.find(u => u.id === 'user_emp_1');
+
+    // Scenario 1: Exceeded KM (using two past vehicles)
+    const vehForExceededKm1 = findUnassignedVehicle(assignedForScenario);
+    if (vehForExceededKm1) assignedForScenario.push(vehForExceededKm1.id);
+    const vehForExceededKm2 = findUnassignedVehicle(assignedForScenario);
+    if (vehForExceededKm2) assignedForScenario.push(vehForExceededKm2.id);
+
+    if (empExceededKm && vehForExceededKm1 && vehForExceededKm2) {
+        // This is a past assignment on a different car, contributing to the user's total KM
+        vehForExceededKm1.assignmentHistory = (vehForExceededKm1.assignmentHistory || []).concat([{
+            assignedToId: empExceededKm.id, assignedToName: empExceededKm.name, type: 'Employee',
+            startDate: generatePastDate(700), endDate: generatePastDate(300),
+            startMileage: 1000, endMileage: 41000, // 40,000 km driven
+        }]);
+        // This is the current assignment
+        vehForExceededKm2.mileage = 28000;
+        vehForExceededKm2.assignedEmployeeId = empExceededKm.id;
+        vehForExceededKm2.assignmentHistory = (vehForExceededKm2.assignmentHistory || []).concat([{
+            assignedToId: empExceededKm.id, assignedToName: empExceededKm.name, type: 'Employee',
+            startDate: generatePastDate(299), endDate: null,
+            startMileage: 3000, endMileage: null, // Driven: 25,000 km
+        }]);
+    }
+
+    // Scenario 2: Exceeded Time
+    const vehForExceededTime = findUnassignedVehicle(assignedForScenario);
+    if (vehForExceededTime) {
+        assignedForScenario.push(vehForExceededTime.id);
+        if (empExceededTime) {
+            vehForExceededTime.assignedEmployeeId = empExceededTime.id;
+            vehForExceededTime.assignmentHistory = (vehForExceededTime.assignmentHistory || []).concat([{
+                assignedToId: empExceededTime.id, assignedToName: empExceededTime.name, type: 'Employee',
+                startDate: generatePastDate(365 * 3 + 60), // 3 years, 2 months ago
+                endDate: null, startMileage: 0, endMileage: null,
+            }]);
+        }
+    }
+
+    // Scenario 3: Approaching KM
+    const vehForApproachingKm = findUnassignedVehicle(assignedForScenario);
+    if (vehForApproachingKm) {
+        assignedForScenario.push(vehForApproachingKm.id);
+        if (empApproachingKm) {
+            vehForApproachingKm.mileage = 56000;
+            vehForApproachingKm.assignedEmployeeId = empApproachingKm.id;
+            vehForApproachingKm.assignmentHistory = (vehForApproachingKm.assignmentHistory || []).concat([{
+                assignedToId: empApproachingKm.id, assignedToName: empApproachingKm.name, type: 'Employee',
+                startDate: generatePastDate(500), endDate: null,
+                startMileage: 1000, endMileage: null, // Drove 55,000 km
+            }]);
+        }
+    }
+
+    // Scenario 4: Approaching Time
+    const vehForApproachingTime = findUnassignedVehicle(assignedForScenario);
+    if (vehForApproachingTime) {
+        assignedForScenario.push(vehForApproachingTime.id);
+        if (empApproachingTime) {
+            vehForApproachingTime.assignedEmployeeId = empApproachingTime.id;
+            vehForApproachingTime.assignmentHistory = (vehForApproachingTime.assignmentHistory || []).concat([{
+                assignedToId: empApproachingTime.id, assignedToName: empApproachingTime.name, type: 'Employee',
+                startDate: generatePastDate(30 * 32), // 32 months ago
+                endDate: null, startMileage: 0, endMileage: null,
+            }]);
+        }
+    }
+
+    // Scenario 5: Well Within Limits
+    const vehForWithinLimits = findUnassignedVehicle(assignedForScenario);
+    if (vehForWithinLimits) {
+        assignedForScenario.push(vehForWithinLimits.id);
+        if (empWithinLimits) {
+             vehForWithinLimits.mileage = 15000;
+             vehForWithinLimits.assignedEmployeeId = empWithinLimits.id;
+             vehForWithinLimits.assignmentHistory = (vehForWithinLimits.assignmentHistory || []).concat([{
+                assignedToId: empWithinLimits.id, assignedToName: empWithinLimits.name, type: 'Employee',
+                startDate: generatePastDate(180), // 6 months ago
+                endDate: null, startMileage: 500, endMileage: null, // Drove 14,500 km
+            }]);
+        }
+    }
+
+
     const initialTrips: Trip[] = [];
     const assignedChauffeursWithVehicles = initialChauffeurs.filter(c => c.assignedVehicleId);
     if (assignedChauffeursWithVehicles.length > 0) {
@@ -888,7 +980,6 @@ const App: React.FC = () => {
               <Route path="/costs/categories" element={<CostCategoriesPage categories={costCategories} addCategory={()=>{}} updateCategory={()=>{}} deleteCategory={()=>{}} />} />
               <Route path="/employees/directory" element={<EmployeeDirectoryPage users={employeeUsers} vehicles={vehicles} updateUser={updateUser} toggleUserStatus={toggleUserStatus} />} />
               <Route path="/employees/onboard" element={<EmployeeOnboardingPage addEmployeeAndAssign={addEmployeeAndAssign} availableVehicles={availableVehiclesForOnboarding} availableChauffeurs={availableChauffeursForOnboarding} />} />
-              <Route path="/employees/policy" element={<EmployeePolicyPage users={users} vehicles={vehicles} />} />
               <Route path="/monitoring/notifications" element={<NotificationsPage notifications={notifications} setAsRead={setNotificationsAsRead} />} />
               <Route path="/monitoring/email-log" element={<TelematicsEmailLogPage emails={simulatedEmails} vehicles={vehicles} />} />
               <Route path="/admin/users" element={<UserManagementPage users={users} vehicles={vehicles} addUser={addUser} updateUser={updateUser} toggleUserStatus={toggleUserStatus} />} />

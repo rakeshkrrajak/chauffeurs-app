@@ -274,7 +274,6 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     children: [
       { name: "Directory", path: "/employees/directory", icon: UserGroupIcon },
       { name: "Onboard Employee", path: "/employees/onboard", icon: PlusCircleIcon },
-      { name: "Policy Tracking", path: "/employees/policy", icon: DocumentReportIcon },
     ]
   },
   { 
