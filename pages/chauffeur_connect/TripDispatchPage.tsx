@@ -6,22 +6,38 @@ import Modal from '../../components/Modal';
 interface TripCardProps {
   trip: Trip;
   onDispatch: (tripId: string) => void;
+  chauffeurs: Chauffeur[];
+  vehicles: Vehicle[];
 }
 
-const TripCard: React.FC<TripCardProps> = ({ trip, onDispatch }) => {
+const TripCard: React.FC<TripCardProps> = ({ trip, onDispatch, chauffeurs, vehicles }) => {
   const canBeDispatched = trip.dispatchStatus === TripDispatchStatus.PENDING || trip.dispatchStatus === TripDispatchStatus.REJECTED;
+  const chauffeur = trip.chauffeurId ? chauffeurs.find(c => c.id === trip.chauffeurId) : null;
+  const vehicle = trip.vehicleId ? vehicles.find(v => v.id === trip.vehicleId) : null;
+  
+  const isStarted = trip.status === TripStatus.ONGOING;
+  const isCompleted = trip.status === TripStatus.COMPLETED;
+
   return (
-    <div className="bg-gray-700 p-3 rounded-lg shadow-md mb-3 text-sm">
-      <h4 className="font-bold text-gray-100 truncate">{trip.tripName}</h4>
-      <p className="text-gray-400 text-xs">{trip.origin} to {trip.destination}</p>
-      <p className="text-gray-400 text-xs">
-        Scheduled: {new Date(trip.scheduledStartDate).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-      </p>
-      {trip.rejectionReason && (
-        <p className="text-red-400 text-xs mt-1 italic">
-          Reason: {trip.rejectionReason}
+    <div className="bg-gray-700 p-3 rounded-lg shadow-md mb-3 text-sm flex flex-col justify-between min-h-[130px]">
+      <div>
+        <h4 className="font-bold text-gray-100 truncate" title={trip.tripName}>{trip.tripName}</h4>
+        <p className="text-gray-400 text-xs">{trip.origin} to {trip.destination}</p>
+        <p className="text-gray-400 text-xs">
+          Scheduled: {new Date(trip.scheduledStartDate).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
         </p>
-      )}
+        {chauffeur && <p className="text-sky-300 text-xs mt-1">Chauffeur: {chauffeur.name}</p>}
+        {vehicle && <p className="text-sky-300 text-xs">Vehicle: {vehicle.licensePlate}</p>}
+        
+        {isStarted && trip.actualStartDate && <p className="text-yellow-300 text-xs mt-1 font-semibold">Started: {new Date(trip.actualStartDate).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'})}</p>}
+        {isCompleted && trip.actualEndDate && <p className="text-green-300 text-xs mt-1 font-semibold">Completed: {new Date(trip.actualEndDate).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'})}</p>}
+        
+        {trip.rejectionReason && (
+          <p className="text-red-400 text-xs mt-1 italic">
+            Reason: {trip.rejectionReason}
+          </p>
+        )}
+      </div>
       {canBeDispatched && (
         <button 
           onClick={() => onDispatch(trip.id)} 
@@ -34,28 +50,30 @@ const TripCard: React.FC<TripCardProps> = ({ trip, onDispatch }) => {
   );
 };
 
+
 interface ColumnProps {
   title: string;
-  status: TripDispatchStatus;
   trips: Trip[];
   onDispatch: (tripId: string) => void;
   accentColor: string;
+  chauffeurs: Chauffeur[];
+  vehicles: Vehicle[];
 }
 
-const DispatchColumn: React.FC<ColumnProps> = ({ title, status, trips, onDispatch, accentColor }) => {
-  const filteredTrips = trips.filter(t => t.dispatchStatus === status);
+const DispatchColumn: React.FC<ColumnProps> = ({ title, trips, onDispatch, accentColor, chauffeurs, vehicles }) => {
   return (
-    <div className="bg-gray-800 rounded-lg p-3 w-64 flex-shrink-0">
-      <h3 className={`font-semibold text-gray-200 border-b-2 pb-2 mb-3 ${accentColor}`}>
-        {title} ({filteredTrips.length})
+    <div className="bg-gray-800 rounded-lg p-3 flex flex-col h-full">
+      <h3 className={`font-semibold text-gray-200 border-b-2 pb-2 mb-3 flex-shrink-0 ${accentColor}`}>
+        {title} ({trips.length})
       </h3>
-      <div className="h-96 overflow-y-auto pr-1">
-        {filteredTrips.map(trip => <TripCard key={trip.id} trip={trip} onDispatch={onDispatch} />)}
-        {filteredTrips.length === 0 && <p className="text-xs text-gray-500 text-center pt-4">No trips in this status.</p>}
+      <div className="flex-1 overflow-y-auto pr-1">
+        {trips.map(trip => <TripCard key={trip.id} trip={trip} onDispatch={onDispatch} chauffeurs={chauffeurs} vehicles={vehicles} />)}
+        {trips.length === 0 && <p className="text-xs text-gray-500 text-center pt-4">No trips in this status.</p>}
       </div>
     </div>
   );
 };
+
 
 interface DispatchModalProps {
   trip: Trip;
@@ -217,7 +235,18 @@ const TripDispatchPage: React.FC<TripDispatchPageProps> = ({ trips, chauffeurs, 
     const [selectedChauffeur, setSelectedChauffeur] = useState('');
     const [selectedVehicle, setSelectedVehicle] = useState('');
 
-    const poolTrips = useMemo(() => trips.filter(t => t.dispatchStatus), [trips]);
+    const twentyFourHoursAgo = useMemo(() => new Date(Date.now() - 24 * 60 * 60 * 1000), []);
+
+    const tripsForBoard = useMemo(() => trips.filter(t => 
+        t.tripPurpose === TripPurpose.POOL || t.dispatchStatus
+    ), [trips]);
+
+    const pendingTrips = useMemo(() => tripsForBoard.filter(t => t.dispatchStatus === TripDispatchStatus.PENDING), [tripsForBoard]);
+    const awaitingTrips = useMemo(() => tripsForBoard.filter(t => t.dispatchStatus === TripDispatchStatus.AWAITING_ACCEPTANCE), [tripsForBoard]);
+    const acceptedTrips = useMemo(() => tripsForBoard.filter(t => t.dispatchStatus === TripDispatchStatus.ACCEPTED && t.status === TripStatus.PLANNED), [tripsForBoard]);
+    const startedTrips = useMemo(() => tripsForBoard.filter(t => t.status === TripStatus.ONGOING), [tripsForBoard]);
+    const completedTrips = useMemo(() => tripsForBoard.filter(t => t.status === TripStatus.COMPLETED && t.actualEndDate && new Date(t.actualEndDate) > twentyFourHoursAgo), [tripsForBoard, twentyFourHoursAgo]);
+    const rejectedTrips = useMemo(() => tripsForBoard.filter(t => t.dispatchStatus === TripDispatchStatus.REJECTED), [tripsForBoard]);
     
     const busyVehicleIds = useMemo(() => 
         new Set(trips.filter(t => t.status === TripStatus.ONGOING && t.vehicleId).map(t => t.vehicleId))
@@ -310,40 +339,60 @@ const TripDispatchPage: React.FC<TripDispatchPageProps> = ({ trips, chauffeurs, 
     }
   
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-100 flex items-center">
+    <div className="flex flex-col h-full space-y-4">
+      <h1 className="text-3xl font-bold text-gray-100 flex items-center flex-shrink-0">
         <PaperAirplaneIcon className="w-8 h-8 mr-3 text-primary-400" />
         Trip Dispatch Center (Pool)
       </h1>
 
-      <div className="flex space-x-4 overflow-x-auto pb-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 flex-1 min-h-0">
         <DispatchColumn 
             title="Pending Dispatch" 
-            status={TripDispatchStatus.PENDING} 
-            trips={poolTrips} 
+            trips={pendingTrips} 
             onDispatch={handleDispatch} 
             accentColor="border-gray-500"
+            chauffeurs={chauffeurs}
+            vehicles={vehicles}
         />
         <DispatchColumn 
             title="Awaiting Acceptance" 
-            status={TripDispatchStatus.AWAITING_ACCEPTANCE} 
-            trips={poolTrips} 
+            trips={awaitingTrips} 
             onDispatch={handleDispatch}
             accentColor="border-yellow-500"
+            chauffeurs={chauffeurs}
+            vehicles={vehicles}
         />
         <DispatchColumn 
             title="Accepted" 
-            status={TripDispatchStatus.ACCEPTED} 
-            trips={poolTrips} 
+            trips={acceptedTrips} 
+            onDispatch={handleDispatch}
+            accentColor="border-sky-500"
+            chauffeurs={chauffeurs}
+            vehicles={vehicles}
+        />
+        <DispatchColumn 
+            title="Trip Started" 
+            trips={startedTrips} 
+            onDispatch={handleDispatch}
+            accentColor="border-blue-500"
+            chauffeurs={chauffeurs}
+            vehicles={vehicles}
+        />
+        <DispatchColumn 
+            title="Trip Completed" 
+            trips={completedTrips} 
             onDispatch={handleDispatch}
             accentColor="border-green-500"
+            chauffeurs={chauffeurs}
+            vehicles={vehicles}
         />
         <DispatchColumn 
             title="Rejected" 
-            status={TripDispatchStatus.REJECTED} 
-            trips={poolTrips} 
+            trips={rejectedTrips} 
             onDispatch={handleDispatch}
             accentColor="border-red-500"
+            chauffeurs={chauffeurs}
+            vehicles={vehicles}
         />
       </div>
 
