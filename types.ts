@@ -1,3 +1,6 @@
+// FIX: Add missing React import for React.SVGProps and React.ReactNode types.
+import React from 'react';
+
 // FIX: Removed self-import of 'Shift' which was causing a conflict with its own declaration.
 export enum Shift {
   DAY = 'Day Shift',
